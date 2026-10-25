@@ -62,8 +62,7 @@ public class WatchActivity extends Activity implements MessageClient.OnMessageRe
         showBars=new Switch(this); showBars.setText("Barras de audio"); showBars.setTextSize(12); showBars.setTextColor(Color.WHITE); showBars.setMinHeight(dp(48));
         showBars.setChecked(getPreferences(0).getBoolean("bars",true)); bars.enabled=showBars.isChecked(); body.addView(showBars,new LinearLayout.LayoutParams(-1,dp(48)));
         showBars.setOnCheckedChangeListener((v,checked)->{
-            boolean spotify = state.optBoolean("spotify", false);
-            bars.enabled=spotify || checked; bars.invalidate(); getPreferences(0).edit().putBoolean("bars",checked).apply(); send("sync",null); updateAudio();
+            bars.enabled=checked; bars.invalidate(); getPreferences(0).edit().putBoolean("bars",checked).apply(); send("sync",null); updateAudio();
         });
         audioStatus=text(body,"Activa el visualizador en el teléfono",10,0xffbecbde);
         more=wide(body,"Más controles",()->{ extras.setVisibility(extras.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE); });
@@ -71,13 +70,13 @@ public class WatchActivity extends Activity implements MessageClient.OnMessageRe
         LinearLayout skips=row(extras);
         back=button(skips,"−10 s","Retroceder diez segundos",()->send("back",null));
         forward=button(skips,"+10 s","Avanzar diez segundos",()->send("forward",null));
-        mute=wide(extras,"Silenciar / restaurar",()->send("mute",null));
+        mute=wide(extras,"Silenciar / restaurar",()->runOption(!state.optBoolean("remote"),()->send("mute",null)));
         stop=wide(extras,"Detener",()->send("stop",null));
-        shuffle=wide(extras,"Aleatorio",()->send("shuffle",null));
-        repeat=wide(extras,"Repetición",()->send("repeat",null));
+        shuffle=wide(extras,"Aleatorio",()->runOption(state.optBoolean("canShuffle"),()->send("shuffle",null)));
+        repeat=wide(extras,"Repetición",()->runOption(state.optBoolean("canRepeat"),()->send("repeat",null)));
         players=wide(extras,"Elegir reproductor",this::choosePlayer);
-        queue=wide(extras,"Cola de reproducción",this::chooseQueue);
-        customs=wide(extras,"Opciones del reproductor",this::chooseCustom);
+        queue=wide(extras,"Cola de reproducción",()->runOption(array("queue").length()>0,this::chooseQueue));
+        customs=wide(extras,"Opciones del reproductor",()->runOption(array("customs").length()>0,this::chooseCustom));
         text(extras,"Aleatorio, repetición y otras opciones aparecen si el reproductor las ofrece. Gira la corona o desliza para ver más.",10,0xffbecbde);
         scroll.setOnGenericMotionListener((v,event)->{
             if(event.getAction()==MotionEvent.ACTION_SCROLL) { scroll.smoothScrollBy(0,(int)(-event.getAxisValue(MotionEvent.AXIS_SCROLL)*dp(35))); return true; } return false;
@@ -100,6 +99,13 @@ public class WatchActivity extends Activity implements MessageClient.OnMessageRe
         Button v=new Button(this); v.setText(label); v.setAllCaps(false); v.setTextSize(12); v.setTextColor(Color.WHITE); v.setBackgroundTintList(ColorStateList.valueOf(0xff23384a));
         v.setOnClickListener(w->action.run()); parent.addView(v,new LinearLayout.LayoutParams(-1,dp(48))); return v;
     }
+    private void runOption(boolean supported,Runnable action) {
+        if(!supported) {
+            Toast.makeText(this,"Opcion incompatible con este reproductor.",Toast.LENGTH_LONG).show();
+            return;
+        }
+        action.run();
+    }
     private void enable(boolean connected) {
         long a=state.optLong("actions"); boolean ready=connected && state.optBoolean("ready");
         previous.setEnabled(ready && (a&PlaybackState.ACTION_SKIP_TO_PREVIOUS)!=0);
@@ -108,11 +114,11 @@ public class WatchActivity extends Activity implements MessageClient.OnMessageRe
         boolean seeking=ready && (a&PlaybackState.ACTION_SEEK_TO)!=0;
         seek.setEnabled(seeking && state.optLong("duration")>0); back.setEnabled(seeking); forward.setEnabled(seeking);
         stop.setEnabled(ready && (a&PlaybackState.ACTION_STOP)!=0);
-        minus.setEnabled(ready); plus.setEnabled(ready); mute.setEnabled(ready && !state.optBoolean("remote"));
+        minus.setEnabled(ready); plus.setEnabled(ready); mute.setEnabled(ready);
         players.setEnabled(ready && array("players").length()>0);
-        queue.setEnabled(ready && array("queue").length()>0);
-        customs.setEnabled(ready && array("customs").length()>0);
-        shuffle.setEnabled(ready && state.optBoolean("canShuffle")); repeat.setEnabled(ready && state.optBoolean("canRepeat"));
+        queue.setEnabled(ready);
+        customs.setEnabled(ready);
+        shuffle.setEnabled(ready); repeat.setEnabled(ready);
     }
     private JSONArray array(String key) { JSONArray a=state.optJSONArray(key); return a==null?new JSONArray():a; }
     private void send(String action,JSONObject args) {
@@ -130,6 +136,11 @@ public class WatchActivity extends Activity implements MessageClient.OnMessageRe
     }
     @Override public void onMessageReceived(MessageEvent event) {
         if(phone!=null && !phone.equals(event.getSourceNodeId())) return;
+        if(Link.SPOTIFY_ICON.equals(event.getPath())) {
+            byte[] icon=event.getData();
+            main.post(()->bars.setSpotifyLogo(icon));
+            return;
+        }
         JSONObject incoming=Link.json(event.getData());
         if(Link.STATE.equals(event.getPath())) main.post(()->{
             state=incoming; lastState=SystemClock.elapsedRealtime();
@@ -142,7 +153,9 @@ public class WatchActivity extends Activity implements MessageClient.OnMessageRe
             shuffle.setText(state.optInt("shuffle")==1?"Aleatorio: activado":"Aleatorio: desactivado");
             int mode=state.optInt("repeat"); repeat.setText(mode==1?"Repetir: una":mode==2?"Repetir: todas":"Repetir: desactivado");
             String notice=state.optString("notice"); if(!notice.isEmpty() && !notice.equals(lastNotice)) Toast.makeText(this,notice,Toast.LENGTH_LONG).show(); lastNotice=notice;
-            bars.enabled = showBars.isChecked();
+            bars.spotifyActive=state.optBoolean("spotify");
+            bars.enabled=showBars.isChecked();
+            bars.invalidate();
             updateAudio(); enable(true);
         });
         else if(Link.AUDIO.equals(event.getPath())) main.post(()->{
@@ -164,7 +177,9 @@ public class WatchActivity extends Activity implements MessageClient.OnMessageRe
     }
     @Override protected void onResume() {
         super.onResume(); bars.foreground=true; bars.invalidate();
-        Wearable.getMessageClient(this).addListener(this); main.post(poll);
+        Wearable.getMessageClient(this).addListener(this);
+        send("sync",Link.object("requestSpotifyIcon",!bars.hasSpotifyLogo()));
+        main.post(poll);
     }
     @Override protected void onPause() {
         main.removeCallbacks(poll);

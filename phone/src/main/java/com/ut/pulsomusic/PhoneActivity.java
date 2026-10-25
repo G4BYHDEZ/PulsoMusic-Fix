@@ -44,7 +44,7 @@ public class PhoneActivity extends Activity {
         button(body,"Detener visualizador",()->stopService(new Intent(this,AudioCaptureService.class)));
         text(body,"Android solicitará permiso para capturar la reproducción. No usamos el micrófono. Algunas apps bloquean el audio: en ese caso las barras quedan en silencio. Puedes ocultarlas desde el reloj sin detener la captura; para ahorrar batería, detén la captura aquí.",14,0xffb7c4da);
         section(body,"CONTROLES DISPONIBLES");
-        text(body,"Reproducir/pausar · anterior/siguiente · volumen · silencio · avanzar/retroceder 10 s · posición · detener · reproductor · cola y acciones adicionales cuando la app de música las ofrezca.\n\nAleatorio, repetición y otras acciones dependen de cada reproductor. Las opciones no compatibles aparecen desactivadas o no se muestran.",15,0xffb7c4da);
+        text(body,"Reproducir/pausar · anterior/siguiente · volumen · silencio · avanzar/retroceder 10 s · posición · detener · reproductor · cola y acciones adicionales cuando la app de música las ofrezca.\n\nAleatorio, repetición y otras acciones dependen de cada reproductor. Si una opción no es compatible, Pulso te lo indicará al pulsarla.",15,0xffb7c4da);
         setContentView(scroll);
     }
     private int dp(int n) { return Math.round(n*getResources().getDisplayMetrics().density); }

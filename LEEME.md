@@ -17,20 +17,21 @@ Dos aplicaciones nativas en Java, dentro del mismo proyecto de Android Studio. E
 - Subir/bajar volumen y silenciar/restaurar la música local del teléfono.
 - Deslizar la posición de la canción, avanzar o retroceder diez segundos y detener.
 - Activar/desactivar aleatorio y alternar repetición: desactivada → todas → una.
+- Si se pulsa una opción que el reproductor actual no admite, Pulso muestra: «Opcion incompatible con este reproductor.»
 - Elegir entre los reproductores con sesiones activas.
 - Seleccionar canciones de la cola, cuando el reproductor publica la cola y admite esa acción. Se muestran hasta treinta elementos.
 - Otras acciones publicadas por el reproductor, con sus nombres originales.
-- **Barras de audio**: interruptor persistente para mostrar u ocultar el fondo. Al ocultarlas se dejan de enviar niveles a ese reloj. La captura del teléfono se detiene por separado desde Pulso o desde su notificación.
+- **Barras de audio**: interruptor persistente para mostrar u ocultar el fondo. Si Spotify es el reproductor seleccionado y las barras no se están mostrando, Pulso enseña el icono de Spotify como fondo. Con otros reproductores nunca se muestra ese icono. La captura del teléfono se detiene por separado desde Pulso o desde su notificación.
 
-Desliza hacia arriba o gira la corona para ver el volumen, el interruptor y **Más controles**. Los botones incompatibles permanecen desactivados. Pulso no puede obligar a una aplicación externa a ofrecer cola, aleatorio, repetición, búsqueda u otras funciones. El volumen de una sesión remota depende de esa sesión; el silencio se ofrece para música local.
+Desliza hacia arriba o gira la corona para ver el volumen, el interruptor y **Más controles**. Las opciones no compatibles muestran un aviso al pulsarlas. Pulso no puede obligar a una aplicación externa a ofrecer cola, aleatorio, repetición, búsqueda u otras funciones. El volumen de una sesión remota depende de esa sesión; el silencio se ofrece para música local.
 
 ## Barras reales y segundo plano
 
-Las dieciséis barras representan bandas de frecuencia del audio capturado en el teléfono. No son una animación aleatoria. Se analizan muestras mono a 16 kHz y se envían niveles como máximo diez veces por segundo mientras el reloj está visible y solicita las barras. No se envía audio bruto al reloj.
+Las dieciséis barras representan bandas de frecuencia del audio capturado en el teléfono. No son una animación aleatoria. Se analizan muestras mono a 16 kHz y se envían niveles como máximo diez veces por segundo mientras el reloj está visible y solicita las barras. No se envía audio bruto al reloj. Si Spotify es el reproductor seleccionado pero no hay barras visibles —por ejemplo, porque está desactivado el interruptor o Spotify bloquea la captura— el reloj muestra como fondo el icono de Spotify obtenido de la aplicación instalada en el teléfono. Con otro reproductor seleccionado, el logo de Spotify no aparece.
 
 La captura usa AudioPlaybackCapture y MediaProjection con un servicio en primer plano y una notificación **Detener**. El permiso RECORD_AUDIO es necesario para esa API, pero Pulso no abre el micrófono.
 
-**No todos los reproductores permiten capturar su audio.** Ante audio bloqueado o silencio las barras quedan vacías y se informa en pantalla; los controles pueden seguir funcionando. Para una demostración, utiliza un reproductor de archivos locales que permita capturar audio, con una canción de prueba sin protección. No se promete compatibilidad de captura con Spotify, YouTube Music u otra aplicación específica.
+**No todos los reproductores permiten capturar su audio.** Ante audio bloqueado o silencio las barras quedan vacías y se informa en pantalla; los controles pueden seguir funcionando. Spotify puede bloquear la captura y entonces no habrá niveles de audio que mostrar; Pulso mostrará su icono de fondo sólo si Spotify es el reproductor seleccionado. Para una demostración, utiliza un reproductor de archivos locales que permita capturar audio, con una canción de prueba sin protección. No se promete compatibilidad de captura con Spotify, YouTube Music u otra aplicación específica.
 
 Android puede terminar la proyección al bloquear la pantalla, cuando el usuario revoca el permiso o por sus políticas. En ese caso hay que volver a autorizar en el teléfono. No se reinicia una captura sin consentimiento. Los controles se atienden mediante el servicio de acceso a notificaciones; no requieren que la pantalla de Pulso permanezca abierta. Algunos fabricantes imponen restricciones adicionales de batería.
 

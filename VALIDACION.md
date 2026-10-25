@@ -17,7 +17,8 @@ La prueba de integración invoca la recepción de órdenes del servicio del tel�
 
 - Emparejar los dispositivos y probar el intercambio completo por Wear OS Data Layer. Los AVD se abrieron por separado; no se completó su vinculación. El emulador del teléfono solicita configurar la aplicación de vinculación.
 - Captura completa MediaProjection → AudioRecord → niveles → reloj, con consentimiento y un reproductor real que permita capturar audio.
-- Compatibilidad concreta con Spotify, YouTube Music u otras aplicaciones. Cada una decide qué acciones y qué audio expone.
+- Captura de audio y compatibilidad de controles con Spotify, YouTube Music u otras aplicaciones. Cada una decide qué acciones y qué audio expone; Pulso no puede saltarse sus restricciones de captura.
+- Transferencia y visualización en un reloj emparejado del icono de Spotify como fondo cuando no hay barras visibles y Spotify es el reproductor seleccionado. Requiere Spotify instalado en el teléfono.
 - Volumen/silencio en rutas físicas como auriculares Bluetooth y altavoces remotos.
 - Batería, latencia y comportamiento prolongado con el teléfono bloqueado, restricciones del fabricante o interrupciones de Bluetooth.
 

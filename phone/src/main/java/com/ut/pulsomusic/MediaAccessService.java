@@ -1,6 +1,10 @@
 package com.ut.pulsomusic;
 
 import android.content.ComponentName;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
 import android.media.AudioManager;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
@@ -11,6 +15,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.service.notification.NotificationListenerService;
+import android.util.Log;
 import android.support.v4.media.session.MediaControllerCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
@@ -21,12 +26,19 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
+import java.io.ByteArrayOutputStream;
 
 public class MediaAccessService extends NotificationListenerService {
+    private static final String SPOTIFY_PACKAGE="com.spotify.music";
     public static volatile MediaAccessService instance;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Map<String, Long> watchers = new HashMap<>();
     private final Map<String, Boolean> audioWanted = new HashMap<>();
+    private final Set<String> spotifyIconNodes=new HashSet<>();
+    private byte[] spotifyIcon;
+    private boolean spotifyIconLookupAttempted;
     private MediaSessionManager manager;
     private MediaController selected;
     private MediaControllerCompat compat;
@@ -49,6 +61,7 @@ public class MediaAccessService extends NotificationListenerService {
         @Override public void run() {
             watchers.entrySet().removeIf(e -> SystemClock.elapsedRealtime()-e.getValue()>15000);
             audioWanted.keySet().retainAll(watchers.keySet());
+            spotifyIconNodes.retainAll(watchers.keySet());
             if (!watchers.isEmpty()) refresh();
             main.postDelayed(this, 2000);
         }
@@ -102,7 +115,8 @@ public class MediaAccessService extends NotificationListenerService {
             watchers.put(node,SystemClock.elapsedRealtime());
             audioWanted.put(node,data.optBoolean("bars",true));
             String action=data.optString("action","sync");
-            if(action.equals("bye")) { watchers.remove(node); audioWanted.remove(node); return; }
+            if(action.equals("bye")) { watchers.remove(node); audioWanted.remove(node); spotifyIconNodes.remove(node); return; }
+            if(data.optBoolean("requestSpotifyIcon")) spotifyIconNodes.remove(node);
             notice="";
             refresh();
             try { execute(action, data); }
@@ -196,9 +210,38 @@ public class MediaAccessService extends NotificationListenerService {
         if(s.getState()==PlaybackState.STATE_PLAYING) p+=(long)((SystemClock.elapsedRealtime()-s.getLastPositionUpdateTime())*s.getPlaybackSpeed());
         return clamp(p);
     }
+    private boolean spotifySelected() { return selected!=null && SPOTIFY_PACKAGE.equals(selected.getPackageName()); }
+    private byte[] spotifyIcon() {
+        if(spotifyIconLookupAttempted) return spotifyIcon;
+        spotifyIconLookupAttempted=true;
+        try {
+            Drawable icon=getPackageManager().getApplicationIcon(SPOTIFY_PACKAGE);
+            Bitmap bitmap=Bitmap.createBitmap(96,96,Bitmap.Config.ARGB_8888);
+            Canvas canvas=new Canvas(bitmap);
+            icon.setBounds(0,0,canvas.getWidth(),canvas.getHeight());
+            icon.draw(canvas);
+            ByteArrayOutputStream output=new ByteArrayOutputStream();
+            if(!bitmap.compress(Bitmap.CompressFormat.PNG,100,output)) {
+                Log.e("Pulso","No se pudo codificar el icono de Spotify");
+                return null;
+            }
+            spotifyIcon=output.toByteArray();
+        } catch(PackageManager.NameNotFoundException e) {
+            Log.w("Pulso","No se encontró el icono de Spotify instalado",e);
+        }
+        return spotifyIcon;
+    }
+    private void sendSpotifyIcon(String node) {
+        byte[] icon=spotifyIcon();
+        if(icon==null || !spotifyIconNodes.add(node)) return;
+        Link.send(this,node,Link.SPOTIFY_ICON,icon).addOnFailureListener(e->main.post(()->{
+            spotifyIconNodes.remove(node);
+            Log.w("Pulso","No se pudo enviar el icono de Spotify al reloj",e);
+        }));
+    }
     public JSONObject state() {
         JSONObject data=Link.object("ready",true,"title","Sin reproducción","artist","Abre tu reproductor en el teléfono","playing",false,
-                "notice",notice,"capture",AudioCaptureService.active,"captureStatus",AudioCaptureService.status);
+                "notice",notice,"capture",AudioCaptureService.active,"captureStatus",AudioCaptureService.status,"spotify",spotifySelected());
         try {
             AudioManager audio=(AudioManager)getSystemService(AUDIO_SERVICE);
             data.put("volume",audio.getStreamVolume(AudioManager.STREAM_MUSIC));
@@ -246,7 +289,10 @@ public class MediaAccessService extends NotificationListenerService {
     }
     public void publish() {
         JSONObject data=state();
-        for(String node:watchers.keySet()) Link.send(this,node,Link.STATE,data);
+        for(String node:watchers.keySet()) {
+            Link.send(this,node,Link.STATE,data);
+            if(spotifySelected()) sendSpotifyIcon(node);
+        }
     }
     public void sendAudio(JSONObject levels) {
         main.post(() -> {
